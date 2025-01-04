@@ -1,0 +1,222 @@
+<!DOCTYPE html>
+<html>
+  <head>
+    <meta charset="UTF-8" />
+    <title>German Heads Up</title>
+    <style>
+      body {
+        font-family: sans-serif;
+        display: flex;
+        flex-direction: row;
+        gap: 2rem;
+        margin: 2rem;
+      }
+      .main {
+        flex: 2;
+        display: flex;
+        flex-direction: column;
+        align-items: center;
+      }
+      .word {
+        font-size: 4rem;
+        text-align: center;
+        margin: 2rem 0;
+        border: 1px solid #333;
+        width: 60%;
+        justify-content: center;
+        align-items: center;
+        display: flex;
+        height: 200px;
+      }
+      .controls {
+        display: flex;
+        gap: 1rem;
+      }
+      button {
+        padding: 0.5rem 1rem;
+        font-size: 1rem;
+      }
+      .scoreboard {
+        flex: 1;
+        border-left: 1px solid #ccc;
+        padding-left: 1rem;
+      }
+      .scoreboard h3 {
+        margin-top: 0;
+      }
+      .playerScores {
+        margin-top: 1rem;
+      }
+    </style>
+  </head>
+  <body>
+    <div class="main">
+      <div class="word" id="wordDisplay">Press "Start Round"</div>
+      <div class="controls">
+        <button id="startBtn">Start Round</button>
+        <button id="pauseBtn">Pause</button>
+        <button id="restartBtn">Next Player</button>
+      </div>
+      <div style="margin:1rem;">
+        Time: <span id="timerDisplay">0.00</span>s
+      </div>
+      <div class="controls">
+        <button id="guessedBtn" style="background-color: #cfc;">✔ Guessed</button>
+        <button id="skippedBtn" style="background-color: #fcc;">✖ Skipped</button>
+      </div>
+    </div>
+    <div class="scoreboard">
+      <h3>Scoreboard</h3>
+      <div id="currentPlayerDisplay"></div>
+      <div class="playerScores" id="playerScores"></div>
+    </div>
+
+    <script>
+      let words = [];
+      let currentWordIndex = 0;
+      let intervalId = null;
+      let startTime = 0;
+      let playerNames = [];
+      let scores = [];
+      let times = [];
+      let currentPlayerIndex = 0;
+
+      const wordDisplay = document.getElementById("wordDisplay");
+      const timerDisplay = document.getElementById("timerDisplay");
+      const startBtn = document.getElementById("startBtn");
+      const pauseBtn = document.getElementById("pauseBtn");
+      const restartBtn = document.getElementById("restartBtn");
+      const guessedBtn = document.getElementById("guessedBtn");
+      const skippedBtn = document.getElementById("skippedBtn");
+      const playerScoresDiv = document.getElementById("playerScores");
+      const currentPlayerDisplay = document.getElementById("currentPlayerDisplay");
+
+      window.addEventListener("load", () => {
+        let rawNames = prompt("Enter participant names, separated by commas:");
+        if (rawNames) {
+          playerNames = rawNames
+            .split(",")
+            .map(n => n.trim())
+            .filter(n => n);
+        }
+        if (playerNames.length === 0) {
+          playerNames = ["Player1"];
+        }
+        playerNames.forEach(() => {
+          scores.push(0);
+          times.push(0);
+        });
+        updateCurrentPlayerDisplay();
+        updateScoreboard();
+      });
+
+      fetch("words.txt")
+        .then(response => response.text())
+        .then(data => {
+          words = data.split(/\r?\n/).filter(w => w.trim() !== "");
+        })
+        .catch(err => {
+          console.error("Error fetching words:", err);
+        });
+
+      function showWord() {
+        if (currentWordIndex < words.length) {
+          wordDisplay.textContent = words[currentWordIndex];
+        } else {
+          wordDisplay.textContent = "No more words!";
+        }
+      }
+
+      function startTimer() {
+        startTime = Date.now();
+        intervalId = setInterval(() => {
+          const elapsed = (Date.now() - startTime) / 1000;
+          timerDisplay.textContent = elapsed.toFixed(2);
+        }, 50);
+      }
+
+      function stopTimer() {
+        if (intervalId) {
+          clearInterval(intervalId);
+          intervalId = null;
+        }
+        return (Date.now() - startTime) / 1000;
+      }
+
+      function updateScoreboard() {
+        let html = "<ul>";
+        for (let i = 0; i < playerNames.length; i++) {
+          html += `<li>${playerNames[i]} - Points: ${scores[i]}, Time: ${times[i].toFixed(2)}s</li>`;
+        }
+        html += "</ul>";
+        playerScoresDiv.innerHTML = html;
+      }
+
+      function updateCurrentPlayerDisplay() {
+        currentPlayerDisplay.textContent =
+          "Current Player: " + playerNames[currentPlayerIndex];
+      }
+
+      startBtn.addEventListener("click", () => {
+        currentWordIndex = 0;
+        showWord();
+        timerDisplay.textContent = "0.00";
+        stopTimer();
+        startTimer();
+      });
+
+      pauseBtn.addEventListener("click", () => {
+        stopTimer();
+      });
+
+      restartBtn.addEventListener("click", () => {
+        stopTimer();
+        let newPlayerName = prompt("Enter the name of the next player:");
+        if (newPlayerName) {
+          currentPlayerIndex++;
+          if (currentPlayerIndex < playerNames.length) {
+            // Replace existing entry
+            playerNames[currentPlayerIndex] = newPlayerName;
+            scores[currentPlayerIndex] = 0;
+            times[currentPlayerIndex] = 0;
+          } else {
+            // Add a new entry
+            playerNames.push(newPlayerName);
+            scores.push(0);
+            times.push(0);
+          }
+        }
+        updateCurrentPlayerDisplay();
+        updateScoreboard();
+        currentWordIndex = 0;
+        wordDisplay.textContent = "Press \"Start Round\"";
+        timerDisplay.textContent = "0.00";
+      });
+
+      guessedBtn.addEventListener("click", () => {
+        if (currentWordIndex < words.length) {
+          const timeTaken = stopTimer();
+          scores[currentPlayerIndex]++;
+          times[currentPlayerIndex] += timeTaken;
+          currentWordIndex++;
+          showWord();
+          timerDisplay.textContent = "0.00";
+          updateScoreboard();
+          startTimer();
+        }
+      });
+
+      skippedBtn.addEventListener("click", () => {
+        if (currentWordIndex < words.length) {
+          const timeTaken = stopTimer();
+          times[currentPlayerIndex] += timeTaken;
+          currentWordIndex++;
+          showWord();
+          timerDisplay.textContent = "0.00";
+          updateScoreboard();
+          startTimer();
+        }
+      });
+    </script>
+  </body>
+</html>
