@@ -69,6 +69,7 @@
         <button id="guessedBtn" style="background-color: #cfc;">✔ Guessed</button>
         <button id="skippedBtn" style="background-color: #fcc;">✖ Skipped</button>
         <button id="translateBtn" style="background-color: #ccc;">Translate</button>
+        <button id="pronounceBtn" style="background-color: #dfd;">Pronounce</button>
       </div>
       <div id="translationDisplay"></div>
     </div>
@@ -79,7 +80,7 @@
     </div>
 
     <script>
-      let pairs = []; // Each element will have `{ word, translation }`
+      let pairs = []; // Each: { word, translation }
       let currentWordIndex = 0;
       let intervalId = null;
       let startTime = 0;
@@ -96,11 +97,11 @@
       const guessedBtn = document.getElementById("guessedBtn");
       const skippedBtn = document.getElementById("skippedBtn");
       const translateBtn = document.getElementById("translateBtn");
+      const pronounceBtn = document.getElementById("pronounceBtn");
       const translationDisplay = document.getElementById("translationDisplay");
       const playerScoresDiv = document.getElementById("playerScores");
       const currentPlayerDisplay = document.getElementById("currentPlayerDisplay");
 
-      // Shuffle helper
       function shuffle(arr) {
         for (let i = arr.length - 1; i > 0; i--) {
           const j = Math.floor(Math.random() * (i + 1));
@@ -127,7 +128,7 @@
         updateScoreboard();
       });
 
-      // Fetch words and translations in parallel
+      // Fetch words and translations
       Promise.all([
         fetch("words.txt").then(r => r.text()),
         fetch("translations.txt").then(r => r.text()),
@@ -135,16 +136,10 @@
         .then(([wordsData, translationsData]) => {
           const words = wordsData.split(/\r?\n/).filter(w => w.trim() !== "");
           const translations = translationsData.split(/\r?\n/).filter(t => t.trim() !== "");
-
-          // Build pairs array to keep each word aligned with its translation
+          // Build pairs
           for (let i = 0; i < words.length; i++) {
-            pairs.push({
-              word: words[i],
-              translation: translations[i] || "",
-            });
+            pairs.push({ word: words[i], translation: translations[i] || "" });
           }
-
-          // Shuffle the pairs so word i lines up with translation i
           shuffle(pairs);
         })
         .catch(err => {
@@ -186,8 +181,7 @@
       }
 
       function updateCurrentPlayerDisplay() {
-        currentPlayerDisplay.textContent =
-          "Current Player: " + playerNames[currentPlayerIndex];
+        currentPlayerDisplay.textContent = "Current Player: " + playerNames[currentPlayerIndex];
       }
 
       // Start round
@@ -258,6 +252,15 @@
       translateBtn.addEventListener("click", () => {
         if (currentWordIndex < pairs.length) {
           translationDisplay.textContent = pairs[currentWordIndex].translation;
+        }
+      });
+
+      // Pronounce current word (German)
+      pronounceBtn.addEventListener("click", () => {
+        if (currentWordIndex < pairs.length) {
+          const utter = new SpeechSynthesisUtterance(pairs[currentWordIndex].word);
+          utter.lang = "de-DE";
+          speechSynthesis.speak(utter);
         }
       });
     </script>
