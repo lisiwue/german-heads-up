@@ -80,13 +80,14 @@
     </div>
 
     <script>
-      let pairs = []; // Each: { word, translation }
+      let pairs = []; // each: { word, translation }
       let currentWordIndex = 0;
       let intervalId = null;
       let startTime = 0;
       let playerNames = [];
-      let scores = [];
-      let times = [];
+      let scores = []; // correct guesses
+      let times = []; // total time
+      let skips = []; // number of skips
       let currentPlayerIndex = 0;
 
       const wordDisplay = document.getElementById("wordDisplay");
@@ -123,6 +124,7 @@
         playerNames.forEach(() => {
           scores.push(0);
           times.push(0);
+          skips.push(0);
         });
         updateCurrentPlayerDisplay();
         updateScoreboard();
@@ -136,7 +138,6 @@
         .then(([wordsData, translationsData]) => {
           const words = wordsData.split(/\r?\n/).filter(w => w.trim() !== "");
           const translations = translationsData.split(/\r?\n/).filter(t => t.trim() !== "");
-          // Build pairs
           for (let i = 0; i < words.length; i++) {
             pairs.push({ word: words[i], translation: translations[i] || "" });
           }
@@ -174,14 +175,20 @@
       function updateScoreboard() {
         let html = "<ul>";
         for (let i = 0; i < playerNames.length; i++) {
-          html += `<li>${playerNames[i]} - Points: ${scores[i]}, Time: ${times[i].toFixed(2)}s</li>`;
+          html += `<li>
+                    ${playerNames[i]} - 
+                    Points: ${scores[i]}, 
+                    Skips: ${skips[i]}, 
+                    Time: ${times[i].toFixed(2)}s
+                  </li>`;
         }
         html += "</ul>";
         playerScoresDiv.innerHTML = html;
       }
 
       function updateCurrentPlayerDisplay() {
-        currentPlayerDisplay.textContent = "Current Player: " + playerNames[currentPlayerIndex];
+        currentPlayerDisplay.textContent =
+          "Current Player: " + playerNames[currentPlayerIndex];
       }
 
       // Start round
@@ -208,10 +215,12 @@
             playerNames[currentPlayerIndex] = newPlayerName;
             scores[currentPlayerIndex] = 0;
             times[currentPlayerIndex] = 0;
+            skips[currentPlayerIndex] = 0;
           } else {
             playerNames.push(newPlayerName);
             scores.push(0);
             times.push(0);
+            skips.push(0);
           }
         }
         updateCurrentPlayerDisplay();
@@ -240,6 +249,7 @@
         if (currentWordIndex < pairs.length) {
           const timeTaken = stopTimer();
           times[currentPlayerIndex] += timeTaken;
+          skips[currentPlayerIndex]++; // increment skip count
           currentWordIndex++;
           showWord();
           timerDisplay.textContent = "0.00";
