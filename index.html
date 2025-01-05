@@ -47,6 +47,11 @@
       .playerScores {
         margin-top: 1rem;
       }
+      #translationDisplay {
+        margin-top: 1rem;
+        font-size: 1.2rem;
+        color: #555;
+      }
     </style>
   </head>
   <body>
@@ -63,7 +68,9 @@
       <div class="controls">
         <button id="guessedBtn" style="background-color: #cfc;">✔ Guessed</button>
         <button id="skippedBtn" style="background-color: #fcc;">✖ Skipped</button>
+        <button id="translateBtn" style="background-color: #ccc;">Translate</button>
       </div>
+      <div id="translationDisplay"></div>
     </div>
     <div class="scoreboard">
       <h3>Scoreboard</h3>
@@ -72,7 +79,7 @@
     </div>
 
     <script>
-      let words = [];
+      let pairs = []; // Each element will have `{ word, translation }`
       let currentWordIndex = 0;
       let intervalId = null;
       let startTime = 0;
@@ -88,8 +95,18 @@
       const restartBtn = document.getElementById("restartBtn");
       const guessedBtn = document.getElementById("guessedBtn");
       const skippedBtn = document.getElementById("skippedBtn");
+      const translateBtn = document.getElementById("translateBtn");
+      const translationDisplay = document.getElementById("translationDisplay");
       const playerScoresDiv = document.getElementById("playerScores");
       const currentPlayerDisplay = document.getElementById("currentPlayerDisplay");
+
+      // Shuffle helper
+      function shuffle(arr) {
+        for (let i = arr.length - 1; i > 0; i--) {
+          const j = Math.floor(Math.random() * (i + 1));
+          [arr[i], arr[j]] = [arr[j], arr[i]];
+        }
+      }
 
       window.addEventListener("load", () => {
         let rawNames = prompt("Enter participant names, separated by commas:");
@@ -110,21 +127,37 @@
         updateScoreboard();
       });
 
-      fetch("words.txt")
-        .then(response => response.text())
-        .then(data => {
-          words = data.split(/\r?\n/).filter(w => w.trim() !== "");
+      // Fetch words and translations in parallel
+      Promise.all([
+        fetch("words.txt").then(r => r.text()),
+        fetch("translations.txt").then(r => r.text()),
+      ])
+        .then(([wordsData, translationsData]) => {
+          const words = wordsData.split(/\r?\n/).filter(w => w.trim() !== "");
+          const translations = translationsData.split(/\r?\n/).filter(t => t.trim() !== "");
+
+          // Build pairs array to keep each word aligned with its translation
+          for (let i = 0; i < words.length; i++) {
+            pairs.push({
+              word: words[i],
+              translation: translations[i] || "",
+            });
+          }
+
+          // Shuffle the pairs so word i lines up with translation i
+          shuffle(pairs);
         })
         .catch(err => {
-          console.error("Error fetching words:", err);
+          console.error("Error fetching data:", err);
         });
 
       function showWord() {
-        if (currentWordIndex < words.length) {
-          wordDisplay.textContent = words[currentWordIndex];
+        if (currentWordIndex < pairs.length) {
+          wordDisplay.textContent = pairs[currentWordIndex].word;
         } else {
           wordDisplay.textContent = "No more words!";
         }
+        translationDisplay.textContent = "";
       }
 
       function startTimer() {
@@ -157,6 +190,7 @@
           "Current Player: " + playerNames[currentPlayerIndex];
       }
 
+      // Start round
       startBtn.addEventListener("click", () => {
         currentWordIndex = 0;
         showWord();
@@ -165,22 +199,22 @@
         startTimer();
       });
 
+      // Pause
       pauseBtn.addEventListener("click", () => {
         stopTimer();
       });
 
+      // Next player
       restartBtn.addEventListener("click", () => {
         stopTimer();
         let newPlayerName = prompt("Enter the name of the next player:");
         if (newPlayerName) {
           currentPlayerIndex++;
           if (currentPlayerIndex < playerNames.length) {
-            // Replace existing entry
             playerNames[currentPlayerIndex] = newPlayerName;
             scores[currentPlayerIndex] = 0;
             times[currentPlayerIndex] = 0;
           } else {
-            // Add a new entry
             playerNames.push(newPlayerName);
             scores.push(0);
             times.push(0);
@@ -193,8 +227,9 @@
         timerDisplay.textContent = "0.00";
       });
 
+      // Guessed
       guessedBtn.addEventListener("click", () => {
-        if (currentWordIndex < words.length) {
+        if (currentWordIndex < pairs.length) {
           const timeTaken = stopTimer();
           scores[currentPlayerIndex]++;
           times[currentPlayerIndex] += timeTaken;
@@ -206,8 +241,9 @@
         }
       });
 
+      // Skipped
       skippedBtn.addEventListener("click", () => {
-        if (currentWordIndex < words.length) {
+        if (currentWordIndex < pairs.length) {
           const timeTaken = stopTimer();
           times[currentPlayerIndex] += timeTaken;
           currentWordIndex++;
@@ -215,6 +251,13 @@
           timerDisplay.textContent = "0.00";
           updateScoreboard();
           startTimer();
+        }
+      });
+
+      // Translate current word
+      translateBtn.addEventListener("click", () => {
+        if (currentWordIndex < pairs.length) {
+          translationDisplay.textContent = pairs[currentWordIndex].translation;
         }
       });
     </script>
