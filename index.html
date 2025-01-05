@@ -7,15 +7,16 @@
       body {
         font-family: sans-serif;
         display: flex;
-        flex-direction: row;
+        flex-direction: column;
+        align-items: center;
         gap: 2rem;
         margin: 2rem;
       }
       .main {
-        flex: 2;
         display: flex;
         flex-direction: column;
         align-items: center;
+        width: 80%;
       }
       .word {
         font-size: 4rem;
@@ -28,18 +29,21 @@
         display: flex;
         height: 200px;
       }
-      .controls {
+      .controls, .player-controls {
         display: flex;
         gap: 1rem;
+        margin: 1rem 0;
       }
       button {
         padding: 0.5rem 1rem;
         font-size: 1rem;
+        cursor: pointer;
       }
       .scoreboard {
-        flex: 1;
-        border-left: 1px solid #ccc;
-        padding-left: 1rem;
+        width: 80%;
+        border: 1px solid #ccc;
+        padding: 1rem;
+        border-radius: 8px;
       }
       .scoreboard h3 {
         margin-top: 0;
@@ -52,15 +56,103 @@
         font-size: 1.2rem;
         color: #555;
       }
+      /* Player Input Styles */
+      #playerInputSection {
+        width: 80%;
+        border: 1px solid #ccc;
+        padding: 1rem;
+        border-radius: 8px;
+      }
+      #playerList {
+        display: flex;
+        flex-direction: column;
+        gap: 0.5rem;
+      }
+      .player-name {
+        display: flex;
+        align-items: center;
+        gap: 0.5rem;
+      }
+      .player-name input {
+        flex: 1;
+        padding: 0.5rem;
+        font-size: 1rem;
+      }
+      .add-player-btn {
+        background-color: #4CAF50;
+        color: white;
+        border: none;
+        border-radius: 4px;
+      }
+      /* Game Description */
+      #gameDescription {
+        margin-bottom: 1rem;
+        font-size: 1.1rem;
+        color: #333;
+      }
+      /* Winner Modal Styles */
+      #winnerModal {
+        position: fixed;
+        top: 0;
+        left: 0;
+        width: 100%;
+        height: 100%;
+        background: rgba(0,0,0,0.8);
+        display: none;
+        justify-content: center;
+        align-items: center;
+        flex-direction: column;
+        color: white;
+        z-index: 1000;
+      }
+      #winnerModal h2 {
+        font-size: 3rem;
+        margin-bottom: 1rem;
+      }
+      #winnerModal p {
+        font-size: 1.5rem;
+        margin-bottom: 2rem;
+      }
+      #closeModalBtn {
+        padding: 0.5rem 1rem;
+        font-size: 1rem;
+        background-color: #f44336;
+        border: none;
+        border-radius: 4px;
+        cursor: pointer;
+      }
     </style>
+    <!-- Include Canvas Confetti Library -->
+    <script src="https://cdn.jsdelivr.net/npm/canvas-confetti@1.4.0/dist/confetti.browser.min.js"></script>
   </head>
   <body>
-    <div class="main">
+    <!-- Player Input Section -->
+    <div id="playerInputSection">
+      <h2>Enter Player Names</h2>
+      <!-- Game Description Added Here -->
+      <p id="gameDescription">
+        This is a game to help you learn German. Play with a friend by describing words to each other in German and try to guess them correctly.
+      </p>
+      <div id="playerList">
+        <div class="player-name">
+          <input type="text" placeholder="Player Name" />
+          <button class="remove-player-btn" style="display: none;">✖</button>
+        </div>
+      </div>
+      <button id="addPlayerBtn" class="add-player-btn">+ Add Player</button>
+      <div class="player-controls">
+        <button id="startGameBtn" style="background-color: #4CAF50; color: white;">Start Game</button>
+      </div>
+    </div>
+
+    <!-- Main Game Section -->
+    <div class="main" style="display: none;">
       <div class="word" id="wordDisplay">Press "Start Round"</div>
       <div class="controls">
-        <button id="startBtn">Start Round</button>
+        <button id="startRoundBtn" style="background-color: #2196F3; color: white;">Start Round</button>
         <button id="pauseBtn">Pause</button>
         <button id="restartBtn">Next Player</button>
+        <button id="endGameBtn" style="background-color: #f44336; color: white;">End Game</button>
       </div>
       <div style="margin:1rem;">
         Time: <span id="timerDisplay">0.00</span>s
@@ -73,28 +165,40 @@
       </div>
       <div id="translationDisplay"></div>
     </div>
-    <div class="scoreboard">
+
+    <!-- Scoreboard Section -->
+    <div class="scoreboard" style="display: none;">
       <h3>Scoreboard</h3>
-      <div id="currentPlayerDisplay"></div>
+      <div id="currentPlayerDisplay">Current Player: </div>
       <div class="playerScores" id="playerScores"></div>
     </div>
 
+    <!-- Winner Modal -->
+    <div id="winnerModal">
+      <h2>Congratulations!</h2>
+      <p id="winnerText"></p>
+      <button id="closeModalBtn">Close</button>
+    </div>
+
     <script>
-      let pairs = []; // Each: { word, translation }
-      let currentWordIndex = 0;
+      let masterPairs = []; // Master list of all word pairs
+      let playerPairs = []; // Array of arrays, each player's unique word pairs
+      let playerWordIndices = []; // Current word index for each player
+      let currentPlayerIndex = 0;
       let intervalId = null;
       let startTime = 0;
       let playerNames = [];
       let scores = [];
       let times = [];
       let skips = [];
-      let currentPlayerIndex = 0;
+      let gameEnded = false;
 
       const wordDisplay = document.getElementById("wordDisplay");
       const timerDisplay = document.getElementById("timerDisplay");
-      const startBtn = document.getElementById("startBtn");
+      const startRoundBtn = document.getElementById("startRoundBtn");
       const pauseBtn = document.getElementById("pauseBtn");
       const restartBtn = document.getElementById("restartBtn");
+      const endGameBtn = document.getElementById("endGameBtn");
       const guessedBtn = document.getElementById("guessedBtn");
       const skippedBtn = document.getElementById("skippedBtn");
       const translateBtn = document.getElementById("translateBtn");
@@ -102,7 +206,17 @@
       const translationDisplay = document.getElementById("translationDisplay");
       const playerScoresDiv = document.getElementById("playerScores");
       const currentPlayerDisplay = document.getElementById("currentPlayerDisplay");
+      const playerInputSection = document.getElementById("playerInputSection");
+      const addPlayerBtn = document.getElementById("addPlayerBtn");
+      const playerList = document.getElementById("playerList");
+      const startGameBtn = document.getElementById("startGameBtn");
+      const mainGameSection = document.querySelector(".main");
+      const scoreboardSection = document.querySelector(".scoreboard");
+      const winnerModal = document.getElementById("winnerModal");
+      const winnerText = document.getElementById("winnerText");
+      const closeModalBtn = document.getElementById("closeModalBtn");
 
+      // Shuffle helper
       function shuffle(arr) {
         for (let i = arr.length - 1; i > 0; i--) {
           const j = Math.floor(Math.random() * (i + 1));
@@ -118,24 +232,89 @@
         availableVoices = speechSynthesis.getVoices();
       };
 
-      window.addEventListener("load", () => {
-        let rawNames = prompt("Enter participant names, separated by commas:");
-        if (rawNames) {
-          playerNames = rawNames
-            .split(",")
-            .map(n => n.trim())
-            .filter(n => n);
-        }
-        if (playerNames.length === 0) {
-          playerNames = ["Player1"];
-        }
-        playerNames.forEach(() => {
-          scores.push(0);
-          times.push(0);
-          skips.push(0);
+      // Add Player Input Functionality
+      addPlayerBtn.addEventListener("click", () => {
+        const playerDiv = document.createElement("div");
+        playerDiv.classList.add("player-name");
+
+        const input = document.createElement("input");
+        input.type = "text";
+        input.placeholder = "Player Name";
+
+        const removeBtn = document.createElement("button");
+        removeBtn.textContent = "✖";
+        removeBtn.style.backgroundColor = "#f44336";
+        removeBtn.style.color = "white";
+        removeBtn.style.border = "none";
+        removeBtn.style.borderRadius = "4px";
+        removeBtn.style.cursor = "pointer";
+
+        removeBtn.addEventListener("click", () => {
+          playerList.removeChild(playerDiv);
         });
+
+        playerDiv.appendChild(input);
+        playerDiv.appendChild(removeBtn);
+        playerList.appendChild(playerDiv);
+      });
+
+      // Start Game Functionality
+      startGameBtn.addEventListener("click", () => {
+        const inputs = playerList.querySelectorAll("input");
+        playerNames = [];
+        playerPairs = [];
+        playerWordIndices = [];
+        for (let input of inputs) {
+          const name = input.value.trim();
+          if (name !== "") {
+            playerNames.push(name);
+          }
+        }
+
+        if (playerNames.length === 0) {
+          alert("Please enter at least one player name.");
+          return;
+        }
+
+        // Check if there are enough words for all players
+        const wordsPerPlayer = Math.floor(masterPairs.length / playerNames.length);
+        if (wordsPerPlayer === 0) {
+          alert("Not enough words for the number of players.");
+          return;
+        }
+
+        // Initialize player stats
+        scores = Array(playerNames.length).fill(0);
+        times = Array(playerNames.length).fill(0);
+        skips = Array(playerNames.length).fill(0);
+
+        // Shuffle masterPairs once
+        shuffle(masterPairs);
+
+        // Assign unique word pairs to each player
+        for (let i = 0; i < playerNames.length; i++) {
+          const startIdx = i * wordsPerPlayer;
+          const endIdx = startIdx + wordsPerPlayer;
+          const assignedWords = masterPairs.slice(startIdx, endIdx);
+          playerPairs.push(assignedWords);
+          playerWordIndices.push(0);
+        }
+
+        // Handle any remaining words by distributing them to players
+        const remainingWords = masterPairs.slice(playerNames.length * wordsPerPlayer);
+        for (let i = 0; i < remainingWords.length; i++) {
+          playerPairs[i % playerNames.length].push(remainingWords[i]);
+        }
+
+        // Hide Player Input and show Game
+        playerInputSection.style.display = "none";
+        mainGameSection.style.display = "flex";
+        scoreboardSection.style.display = "block";
+
         updateCurrentPlayerDisplay();
         updateScoreboard();
+        showWord();
+        startTimer();
       });
 
       // Fetch words and translations
@@ -146,21 +325,28 @@
         .then(([wordsData, translationsData]) => {
           const words = wordsData.split(/\r?\n/).filter(w => w.trim() !== "");
           const translations = translationsData.split(/\r?\n/).filter(t => t.trim() !== "");
-          // Build pairs
+          // Build master pairs
           for (let i = 0; i < words.length; i++) {
-            pairs.push({ word: words[i], translation: translations[i] || "" });
+            masterPairs.push({ word: words[i], translation: translations[i] || "" });
           }
-          shuffle(pairs);
+          shuffle(masterPairs);
         })
         .catch(err => {
           console.error("Error fetching data:", err);
         });
 
       function showWord() {
-        if (currentWordIndex < pairs.length) {
-          wordDisplay.textContent = pairs[currentWordIndex].word;
+        if (gameEnded) return;
+
+        const currentPlayerPairs = playerPairs[currentPlayerIndex];
+        const currentWordIdx = playerWordIndices[currentPlayerIndex];
+
+        if (currentWordIdx < currentPlayerPairs.length) {
+          wordDisplay.textContent = currentPlayerPairs[currentWordIdx].word;
         } else {
-          wordDisplay.textContent = "No more words!";
+          wordDisplay.textContent = "No more words for this player!";
+          // Automatically switch to next player
+          switchToNextPlayer();
         }
         translationDisplay.textContent = "";
       }
@@ -170,7 +356,7 @@
         intervalId = setInterval(() => {
           const elapsed = (Date.now() - startTime) / 1000;
           timerDisplay.textContent = elapsed.toFixed(2);
-        }, 50);
+        }, 100);
       }
 
       function stopTimer() {
@@ -200,8 +386,16 @@
       }
 
       // Start round
-      startBtn.addEventListener("click", () => {
-        currentWordIndex = 0;
+      startRoundBtn.addEventListener("click", () => {
+        if (gameEnded) return; // Prevent starting a new round if game has ended
+        const currentPlayerPairs = playerPairs[currentPlayerIndex];
+        const currentWordIdx = playerWordIndices[currentPlayerIndex];
+
+        if (currentWordIdx >= currentPlayerPairs.length) {
+          alert("No more words for this player.");
+          return;
+        }
+
         showWord();
         timerDisplay.textContent = "0.00";
         stopTimer();
@@ -216,61 +410,88 @@
       // Next player
       restartBtn.addEventListener("click", () => {
         stopTimer();
-        let newPlayerName = prompt("Enter the name of the next player:");
-        if (newPlayerName) {
-          currentPlayerIndex++;
-          if (currentPlayerIndex < playerNames.length) {
-            playerNames[currentPlayerIndex] = newPlayerName;
-            scores[currentPlayerIndex] = 0;
-            times[currentPlayerIndex] = 0;
-            skips[currentPlayerIndex] = 0;
-          } else {
-            playerNames.push(newPlayerName);
-            scores.push(0);
-            times.push(0);
-            skips.push(0);
-          }
+        switchToNextPlayer();
+      });
+
+      // Function to switch to the next player
+      function switchToNextPlayer() {
+        // Check if all players have completed their word lists
+        let allCompleted = playerWordIndices.every((idx, playerIdx) => idx >= playerPairs[playerIdx].length);
+        if (allCompleted) {
+          endGame();
+          return;
         }
+
+        // Move to next player
+        currentPlayerIndex++;
+        if (currentPlayerIndex >= playerNames.length) {
+          currentPlayerIndex = 0; // Loop back to first player
+        }
+
+        // If the next player has already completed their words, skip to the next
+        if (playerWordIndices[currentPlayerIndex] >= playerPairs[currentPlayerIndex].length) {
+          switchToNextPlayer(); // Recursively call to find the next available player
+          return;
+        }
+
         updateCurrentPlayerDisplay();
         updateScoreboard();
-        currentWordIndex = 0;
-        wordDisplay.textContent = "Press \"Start Round\"";
+        showWord();
         timerDisplay.textContent = "0.00";
+        startTimer();
+      }
+
+      // End Game
+      endGameBtn.addEventListener("click", () => {
+        if (gameEnded) return; // Prevent multiple end game triggers
+        endGame();
       });
 
       // Guessed
       guessedBtn.addEventListener("click", () => {
-        if (currentWordIndex < pairs.length) {
+        if (gameEnded) return;
+        const currentPlayerPairs = playerPairs[currentPlayerIndex];
+        const currentWordIdx = playerWordIndices[currentPlayerIndex];
+
+        if (currentWordIdx < currentPlayerPairs.length) {
           const timeTaken = stopTimer();
           scores[currentPlayerIndex]++;
           times[currentPlayerIndex] += timeTaken;
-          currentWordIndex++;
+          playerWordIndices[currentPlayerIndex]++;
+          updateScoreboard();
           showWord();
           timerDisplay.textContent = "0.00";
-          updateScoreboard();
           startTimer();
         }
       });
 
       // Skipped
       skippedBtn.addEventListener("click", () => {
-        if (currentWordIndex < pairs.length) {
+        if (gameEnded) return;
+        const currentPlayerPairs = playerPairs[currentPlayerIndex];
+        const currentWordIdx = playerWordIndices[currentPlayerIndex];
+
+        if (currentWordIdx < currentPlayerPairs.length) {
           const timeTaken = stopTimer();
           times[currentPlayerIndex] += timeTaken;
           skips[currentPlayerIndex]++; // Increment skip count
-          currentWordIndex++;
+          playerWordIndices[currentPlayerIndex]++;
+          updateScoreboard();
           showWord();
           timerDisplay.textContent = "0.00";
-          updateScoreboard();
           startTimer();
         }
       });
 
       // Translate current word with toggle functionality
       translateBtn.addEventListener("click", () => {
-        if (currentWordIndex < pairs.length) {
+        if (gameEnded) return;
+        const currentPlayerPairs = playerPairs[currentPlayerIndex];
+        const currentWordIdx = playerWordIndices[currentPlayerIndex];
+
+        if (currentWordIdx < currentPlayerPairs.length) {
           if (translationDisplay.textContent === "") {
-            translationDisplay.textContent = pairs[currentWordIndex].translation;
+            translationDisplay.textContent = currentPlayerPairs[currentWordIdx].translation;
           } else {
             translationDisplay.textContent = "";
           }
@@ -279,13 +500,17 @@
 
       // Pronounce current word (German)
       pronounceBtn.addEventListener("click", () => {
-        if (currentWordIndex < pairs.length) {
+        if (gameEnded) return;
+        const currentPlayerPairs = playerPairs[currentPlayerIndex];
+        const currentWordIdx = playerWordIndices[currentPlayerIndex];
+
+        if (currentWordIdx < currentPlayerPairs.length) {
           // Make sure voices are loaded
           if (availableVoices.length === 0) {
             availableVoices = speechSynthesis.getVoices();
           }
           // Look for German voice
-          const utter = new SpeechSynthesisUtterance(pairs[currentWordIndex].word);
+          const utter = new SpeechSynthesisUtterance(currentPlayerPairs[currentWordIdx].word);
           const deVoice = availableVoices.find(v => v.lang.startsWith("de"));
           if (deVoice) {
             utter.voice = deVoice;
@@ -299,6 +524,58 @@
           speechSynthesis.speak(utter);
         }
       });
+
+      // End Game and Announce Winner
+      function endGame() {
+        gameEnded = true;
+        stopTimer();
+        // Determine the highest score
+        const maxScore = Math.max(...scores);
+        // Find all players with the max score (handling ties)
+        const winners = playerNames.filter((name, index) => scores[index] === maxScore);
+
+        // Prepare winner text
+        if (winners.length === 1) {
+          winnerText.textContent = `Congratulations, ${winners[0]}! You are the winner with ${maxScore} points!`;
+        } else {
+          winnerText.textContent = `Congratulations, ${winners.join(", ")}! You are the winners with ${maxScore} points each!`;
+        }
+
+        // Show Winner Modal
+        winnerModal.style.display = "flex";
+
+        // Launch Confetti
+        launchConfetti();
+
+        // Disable game controls
+        disableGameControls();
+      }
+
+      // Launch Confetti Function
+      function launchConfetti() {
+        confetti({
+          particleCount: 200,
+          spread: 70,
+          origin: { y: 0.6 }
+        });
+      }
+
+      // Close Winner Modal
+      closeModalBtn.addEventListener("click", () => {
+        winnerModal.style.display = "none";
+      });
+
+      // Disable Game Controls After Game Ends
+      function disableGameControls() {
+        startRoundBtn.disabled = true;
+        pauseBtn.disabled = true;
+        restartBtn.disabled = true;
+        endGameBtn.disabled = true;
+        guessedBtn.disabled = true;
+        skippedBtn.disabled = true;
+        translateBtn.disabled = true;
+        pronounceBtn.disabled = true;
+      }
     </script>
   </body>
 </html>
