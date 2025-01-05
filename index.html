@@ -87,6 +87,7 @@
       let playerNames = [];
       let scores = [];
       let times = [];
+      let skips = [];
       let currentPlayerIndex = 0;
 
       const wordDisplay = document.getElementById("wordDisplay");
@@ -131,6 +132,7 @@
         playerNames.forEach(() => {
           scores.push(0);
           times.push(0);
+          skips.push(0);
         });
         updateCurrentPlayerDisplay();
         updateScoreboard();
@@ -182,7 +184,12 @@
       function updateScoreboard() {
         let html = "<ul>";
         for (let i = 0; i < playerNames.length; i++) {
-          html += `<li>${playerNames[i]} - Points: ${scores[i]}, Time: ${times[i].toFixed(2)}s</li>`;
+          html += `<li>
+                    ${playerNames[i]} - 
+                    Points: ${scores[i]}, 
+                    Skips: ${skips[i]}, 
+                    Time: ${times[i].toFixed(2)}s
+                  </li>`;
         }
         html += "</ul>";
         playerScoresDiv.innerHTML = html;
@@ -216,10 +223,12 @@
             playerNames[currentPlayerIndex] = newPlayerName;
             scores[currentPlayerIndex] = 0;
             times[currentPlayerIndex] = 0;
+            skips[currentPlayerIndex] = 0;
           } else {
             playerNames.push(newPlayerName);
             scores.push(0);
             times.push(0);
+            skips.push(0);
           }
         }
         updateCurrentPlayerDisplay();
@@ -248,6 +257,7 @@
         if (currentWordIndex < pairs.length) {
           const timeTaken = stopTimer();
           times[currentPlayerIndex] += timeTaken;
+          skips[currentPlayerIndex]++; // Increment skip count
           currentWordIndex++;
           showWord();
           timerDisplay.textContent = "0.00";
@@ -256,10 +266,14 @@
         }
       });
 
-      // Translate current word
+      // Translate current word with toggle functionality
       translateBtn.addEventListener("click", () => {
         if (currentWordIndex < pairs.length) {
-          translationDisplay.textContent = pairs[currentWordIndex].translation;
+          if (translationDisplay.textContent === "") {
+            translationDisplay.textContent = pairs[currentWordIndex].translation;
+          } else {
+            translationDisplay.textContent = "";
+          }
         }
       });
 
@@ -276,7 +290,7 @@
           if (deVoice) {
             utter.voice = deVoice;
           } else {
-            // fallback if no German voice found
+            // Fallback if no German voice found
             utter.lang = "de-DE";
           }
           // Cancel any speech in queue
