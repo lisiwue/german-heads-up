@@ -121,6 +121,36 @@
         border-radius: 4px;
         cursor: pointer;
       }
+      .category-buttons {
+        display: flex;
+        gap: 1rem;
+        margin: 2rem 0;
+        flex-wrap: wrap;
+        justify-content: center;
+      }
+      .category-btn {
+        padding: 1rem 2rem;
+        font-size: 1.2rem;
+        border: none;
+        border-radius: 4px;
+        cursor: pointer;
+        transition: transform 0.2s;
+      }
+      .category-btn:hover {
+        transform: scale(1.05);
+      }
+      .category-btn.selected {
+        box-shadow: 0 0 0 3px #fff, 0 0 0 6px currentColor;
+      }
+      .change-category-btn {
+        padding: 0.5rem 1rem;
+        font-size: 1rem;
+        background-color: #FF9800;
+        color: white;
+        border: none;
+        border-radius: 4px;
+        cursor: pointer;
+      }
     </style>
     <!-- Include Canvas Confetti Library -->
     <script src="https://cdn.jsdelivr.net/npm/canvas-confetti@1.4.0/dist/confetti.browser.min.js"></script>
@@ -145,6 +175,17 @@
       </div>
     </div>
 
+    <!-- Category Selection Section -->
+    <div id="categorySection" style="display: none; width: 80%;">
+      <h2 style="text-align: center;">Choose a Word Category</h2>
+      <div class="category-buttons">
+        <button id="adjectivesBtn" class="category-btn" style="background-color: #4CAF50; color: white;">Adjectives</button>
+        <button id="verbsBtn" class="category-btn" style="background-color: #2196F3; color: white;">Verbs</button>
+        <button id="nounsBtn" class="category-btn" style="background-color: #f44336; color: white;">Nouns</button>
+        <button id="adverbsBtn" class="category-btn" style="background-color: #9C27B0; color: white;">Adverbs</button>
+      </div>
+    </div>
+
     <!-- Main Game Section -->
     <div class="main" style="display: none;">
       <div class="word" id="wordDisplay">Press "Start Round"</div>
@@ -153,6 +194,7 @@
         <button id="pauseBtn">Pause</button>
         <button id="restartBtn">Next Player</button>
         <button id="endGameBtn" style="background-color: #f44336; color: white;">End Game</button>
+        <button id="changeCategoryBtn" class="change-category-btn", style="background-color: #FF9800; color: white;">Change Category</button>
       </div>
       <div style="margin:1rem;">
         Time: <span id="timerDisplay">0.00</span>s
@@ -192,6 +234,8 @@
       let times = [];
       let skips = [];
       let gameEnded = false;
+      let currentCategory = null;
+      const categorySection = document.getElementById('categorySection');
 
       const wordDisplay = document.getElementById("wordDisplay");
       const timerDisplay = document.getElementById("timerDisplay");
@@ -214,7 +258,7 @@
       const scoreboardSection = document.querySelector(".scoreboard");
       const winnerModal = document.getElementById("winnerModal");
       const winnerText = document.getElementById("winnerText");
-      const closeModalBtn = document.getElementById("closeModalBtn");
+      const changeCategoryBtn = document.getElementById("changeCategoryBtn");
 
       // Shuffle helper
       function shuffle(arr) {
@@ -262,8 +306,6 @@
       startGameBtn.addEventListener("click", () => {
         const inputs = playerList.querySelectorAll("input");
         playerNames = [];
-        playerPairs = [];
-        playerWordIndices = [];
         for (let input of inputs) {
           const name = input.value.trim();
           if (name !== "") {
@@ -276,45 +318,72 @@
           return;
         }
 
-        // Check if there are enough words for all players
-        const wordsPerPlayer = Math.floor(masterPairs.length / playerNames.length);
-        if (wordsPerPlayer === 0) {
-          alert("Not enough words for the number of players.");
-          return;
-        }
-
-        // Initialize player stats
-        scores = Array(playerNames.length).fill(0);
-        times = Array(playerNames.length).fill(0);
-        skips = Array(playerNames.length).fill(0);
-
-        // Shuffle masterPairs once
-        shuffle(masterPairs);
-
-        // Assign unique word pairs to each player
-        for (let i = 0; i < playerNames.length; i++) {
-          const startIdx = i * wordsPerPlayer;
-          const endIdx = startIdx + wordsPerPlayer;
-          const assignedWords = masterPairs.slice(startIdx, endIdx);
-          playerPairs.push(assignedWords);
-          playerWordIndices.push(0);
-        }
-
-        // Handle any remaining words by distributing them to players
-        const remainingWords = masterPairs.slice(playerNames.length * wordsPerPlayer);
-        for (let i = 0; i < remainingWords.length; i++) {
-          playerPairs[i % playerNames.length].push(remainingWords[i]);
-        }
-
-        // Hide Player Input and show Game
+        // Hide player input and show category selection
         playerInputSection.style.display = "none";
-        mainGameSection.style.display = "flex";
-        scoreboardSection.style.display = "block";
+        categorySection.style.display = "block";
+      });
 
-        updateCurrentPlayerDisplay();
-        updateScoreboard();
-        showWord();
-        startTimer();
+      // Add category button listeners
+      document.querySelectorAll('.category-btn').forEach(btn => {
+        btn.addEventListener('click', async () => {
+          currentCategory = btn.id.replace('Btn', '');
+          
+          try {
+            // Fetch words and translations for selected category
+            const [wordsResponse, translationsResponse] = await Promise.all([
+              fetch(`${currentCategory}_words.txt`),
+              fetch(`${currentCategory}_translations.txt`)
+            ]);
+
+            const wordsText = await wordsResponse.text();
+            const translationsText = await translationsResponse.text();
+
+            const words = wordsText.split(/\r?\n/).filter(w => w.trim() !== "");
+            const translations = translationsText.split(/\r?\n/).filter(t => t.trim() !== "");
+
+            // Clear previous pairs and build new ones
+            masterPairs = [];
+            for (let i = 0; i < words.length; i++) {
+              masterPairs.push({ word: words[i], translation: translations[i] || "" });
+            }
+
+            // Check if there are enough words
+            const wordsPerPlayer = Math.floor(masterPairs.length / playerNames.length);
+            if (wordsPerPlayer === 0) {
+              alert("Not enough words in this category for the number of players.");
+              return;
+            }
+
+            // Initialize game
+            shuffle(masterPairs);
+            playerPairs = [];
+            playerWordIndices = [];
+            scores = Array(playerNames.length).fill(0);
+            times = Array(playerNames.length).fill(0);
+            skips = Array(playerNames.length).fill(0);
+
+            // Distribute words to players
+            for (let i = 0; i < playerNames.length; i++) {
+              const startIdx = i * wordsPerPlayer;
+              const endIdx = startIdx + wordsPerPlayer;
+              playerPairs.push(masterPairs.slice(startIdx, endIdx));
+              playerWordIndices.push(0);
+            }
+
+            // Hide category selection and show game
+            categorySection.style.display = "none";
+            mainGameSection.style.display = "flex";
+            scoreboardSection.style.display = "block";
+
+            updateCurrentPlayerDisplay();
+            updateScoreboard();
+            showWord();
+            startTimer();
+          } catch (err) {
+            console.error("Error loading category:", err);
+            alert(`Error loading ${currentCategory} category. Please try again.`);
+          }
+        });
       });
 
       // Fetch words and translations
@@ -575,7 +644,34 @@
         skippedBtn.disabled = true;
         translateBtn.disabled = true;
         pronounceBtn.disabled = true;
+        changeCategoryBtn.disabled = true; // Add this line
       }
+
+      changeCategoryBtn.addEventListener("click", () => {
+        if (gameEnded) return;
+        
+        // Stop current game activity
+        stopTimer();
+        
+        // Show category selection
+        categorySection.style.display = "block";
+        mainGameSection.style.display = "none";
+        
+        // Reset game state for new category
+        masterPairs = [];
+        playerPairs = [];
+        playerWordIndices = [];
+        currentPlayerIndex = 0;
+        
+        // Keep existing scores but reset current round
+        times = Array(playerNames.length).fill(0);
+        skips = Array(playerNames.length).fill(0);
+        
+        // Update displays
+        timerDisplay.textContent = "0.00";
+        wordDisplay.textContent = "Select New Category";
+        translationDisplay.textContent = "";
+      });
     </script>
   </body>
 </html>
