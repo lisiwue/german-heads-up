@@ -28,6 +28,25 @@
         align-items: center;
         display: flex;
         height: 200px;
+        position: relative;
+      }
+      .word::after {
+        content: "No words available! Select a category first.";
+        position: absolute;
+        background: rgba(0, 0, 0, 0.8);
+        color: white;
+        padding: 0.5rem 1rem;
+        border-radius: 4px;
+        font-size: 1rem;
+        bottom: -40px;
+        opacity: 0;
+        visibility: hidden;
+        transition: opacity 0.2s, visibility 0.2s;
+        white-space: nowrap;
+      }
+      .word.no-words:hover::after {
+        opacity: 1;
+        visibility: visible;
       }
       .controls, .player-controls {
         display: flex;
@@ -236,6 +255,8 @@
       let gameEnded = false;
       let currentCategory = null;
       const categorySection = document.getElementById('categorySection');
+      let isPaused = false;
+      let pausedTime = 0;
 
       const wordDisplay = document.getElementById("wordDisplay");
       const timerDisplay = document.getElementById("timerDisplay");
@@ -404,24 +425,32 @@
           console.error("Error fetching data:", err);
         });
 
+      // Modify the showWord function
       function showWord() {
         if (gameEnded) return;
 
         const currentPlayerPairs = playerPairs[currentPlayerIndex];
         const currentWordIdx = playerWordIndices[currentPlayerIndex];
 
+        if (!currentPlayerPairs || currentPlayerPairs.length === 0) {
+          wordDisplay.textContent = "No words available";
+          wordDisplay.classList.add('no-words');
+          return;
+        }
+
+        wordDisplay.classList.remove('no-words');
         if (currentWordIdx < currentPlayerPairs.length) {
           wordDisplay.textContent = currentPlayerPairs[currentWordIdx].word;
         } else {
           wordDisplay.textContent = "No more words for this player!";
-          // Automatically switch to next player
           switchToNextPlayer();
         }
         translationDisplay.textContent = "";
       }
 
       function startTimer() {
-        startTime = Date.now();
+        if (isPaused) return;
+        startTime = Date.now() - pausedTime;
         intervalId = setInterval(() => {
           const elapsed = (Date.now() - startTime) / 1000;
           timerDisplay.textContent = elapsed.toFixed(2);
@@ -432,8 +461,11 @@
         if (intervalId) {
           clearInterval(intervalId);
           intervalId = null;
+          const elapsed = (Date.now() - startTime) / 1000;
+          pausedTime = Date.now() - startTime;
+          return elapsed;
         }
-        return (Date.now() - startTime) / 1000;
+        return pausedTime / 1000;
       }
 
       function updateScoreboard() {
@@ -454,26 +486,47 @@
         currentPlayerDisplay.textContent = "Current Player: " + playerNames[currentPlayerIndex];
       }
 
-      // Start round
+      // Modify startRoundBtn listener
       startRoundBtn.addEventListener("click", () => {
-        if (gameEnded) return; // Prevent starting a new round if game has ended
+        if (gameEnded) return;
+        
         const currentPlayerPairs = playerPairs[currentPlayerIndex];
         const currentWordIdx = playerWordIndices[currentPlayerIndex];
+
+        if (!currentPlayerPairs || currentPlayerPairs.length === 0) {
+          alert("No words available. Please select a category first.");
+          return;
+        }
 
         if (currentWordIdx >= currentPlayerPairs.length) {
           alert("No more words for this player.");
           return;
         }
 
+        isPaused = false;
+        pausedTime = 0;
+        pauseBtn.textContent = "Pause";
         showWord();
         timerDisplay.textContent = "0.00";
         stopTimer();
         startTimer();
       });
 
-      // Pause
+      // Modify the pause button listener
       pauseBtn.addEventListener("click", () => {
-        stopTimer();
+        if (gameEnded) return;
+        
+        if (pauseBtn.textContent === "Pause") {
+          isPaused = true;
+          stopTimer();
+          pauseBtn.textContent = "Resume";
+          wordDisplay.textContent = "PAUSED";
+        } else {
+          isPaused = false;
+          pauseBtn.textContent = "Pause";
+          showWord();
+          startTimer();
+        }
       });
 
       // Next player
@@ -482,12 +535,27 @@
         switchToNextPlayer();
       });
 
-      // Function to switch to the next player
+      // Modify switchToNextPlayer to check for empty words
       function switchToNextPlayer() {
+        if (!playerPairs || playerPairs.length === 0) {
+          alert("No words available. Please select a category first.");
+          return;
+        }
+
         // Check if all players have completed their word lists
-        let allCompleted = playerWordIndices.every((idx, playerIdx) => idx >= playerPairs[playerIdx].length);
+        let allCompleted = playerWordIndices.every((idx, playerIdx) => 
+          idx >= (playerPairs[playerIdx] ? playerPairs[playerIdx].length : 0)
+        );
+
         if (allCompleted) {
-          endGame();
+          const shouldEndGame = confirm("All words in this category are completed! Would you like to end the game? Click 'Cancel' to change category.");
+          if (shouldEndGame) {
+            endGame();
+          } else {
+            // Show category selection
+            categorySection.style.display = "block";
+            mainGameSection.style.display = "none";
+          }
           return;
         }
 
@@ -605,9 +673,15 @@
 
         // Prepare winner text
         if (winners.length === 1) {
-          winnerText.textContent = `Congratulations, ${winners[0]}! You are the winner with ${maxScore} points!`;
+          winnerText.innerHTML = `Congratulations, ${winners[0]}! You are the winner with ${maxScore} points!<br><br>
+            <button onclick="restartGame()" style="background-color: #4CAF50; color: white; padding: 0.5rem 1rem; border: none; border-radius: 4px; cursor: pointer;">
+              Start New Game
+            </button>`;
         } else {
-          winnerText.textContent = `Congratulations, ${winners.join(", ")}! You are the winners with ${maxScore} points each!`;
+          winnerText.innerHTML = `Congratulations, ${winners.join(", ")}! You are the winners with ${maxScore} points each!<br><br>
+            <button onclick="restartGame()" style="background-color: #4CAF50; color: white; padding: 0.5rem 1rem; border: none; border-radius: 4px; cursor: pointer;">
+              Start New Game
+            </button>`;
         }
 
         // Show Winner Modal
@@ -618,6 +692,41 @@
 
         // Disable game controls
         disableGameControls();
+      }
+
+      // Add this function after the endGame function
+      function restartGame() {
+        // Reset all game states
+        gameEnded = false;
+        masterPairs = [];
+        playerPairs = [];
+        playerWordIndices = [];
+        currentPlayerIndex = 0;
+        scores = Array(playerNames.length).fill(0);
+        times = Array(playerNames.length).fill(0);
+        skips = Array(playerNames.length).fill(0);
+        
+        // Enable controls
+        startRoundBtn.disabled = false;
+        pauseBtn.disabled = false;
+        restartBtn.disabled = false;
+        endGameBtn.disabled = false;
+        guessedBtn.disabled = false;
+        skippedBtn.disabled = false;
+        translateBtn.disabled = false;
+        pronounceBtn.disabled = false;
+        changeCategoryBtn.disabled = false;
+        
+        // Hide game sections and show category selection
+        mainGameSection.style.display = "none";
+        winnerModal.style.display = "none";
+        categorySection.style.display = "block";
+        
+        // Reset displays
+        timerDisplay.textContent = "0.00";
+        wordDisplay.textContent = "Select New Category";
+        translationDisplay.textContent = "";
+        updateScoreboard();
       }
 
       // Launch Confetti Function
