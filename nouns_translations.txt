@@ -14,3 +14,7 @@ The business/operation
 The agriculture/farming
 The suburb
 The consideration/thought
+The objection
+The opinion
+The practice
+The statement
